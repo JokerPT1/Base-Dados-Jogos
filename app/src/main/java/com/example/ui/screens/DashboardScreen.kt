@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +32,10 @@ import com.example.ui.ResellViewModel
 import java.text.NumberFormat
 import java.util.Locale
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.shape.CircleShape
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -41,14 +46,30 @@ fun DashboardScreen(
     onNavigateToCloudSync: () -> Unit,
     onNavigateToScanner: () -> Unit
 ) {
+    val context = LocalContext.current
     val items by viewModel.allItems.collectAsState()
+    val trueCosts by viewModel.allTrueCosts.collectAsState()
+    val looseParts by viewModel.allLooseParts.collectAsState()
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedPlatformFilter by remember { mutableStateOf("All") }
+    var currentTab by remember { mutableStateOf("INVENTORY") } // INVENTORY, LOOSE_PARTS, TRUE_COST
+
+    // True Cost Form States
+    var trueCostName by remember { mutableStateOf("") }
+    var trueCostPriceStr by remember { mutableStateOf("") }
+    var trueCostQtyStr by remember { mutableStateOf("1") }
+
+    // Loose Parts Form States
+    var loosePartName by remember { mutableStateOf("") }
+    var loosePartPlatform by remember { mutableStateOf("PS2") }
+    var loosePartType by remember { mutableStateOf("Manual") } // Manual, Artwork, Box
+    var loosePartPriceStr by remember { mutableStateOf("") }
 
     val currencyFormatter = remember { NumberFormat.getCurrencyInstance(Locale.US) }
 
     // List of available platforms
-    val platforms = listOf("All", "PS1", "PS2", "PS3", "PS4", "PS5", "Switch", "Xbox", "Retro", "Other")
+    val platforms = listOf("All", "PS1", "PS2", "PS3", "PS4", "PS5", "PSP", "PS Vita", "Switch", "Xbox", "Retro", "Other")
 
     // Filtered items
     val filteredItems = items.filter { item ->
@@ -62,10 +83,13 @@ fun DashboardScreen(
     // Financial Computations
     val totalItemsCount = items.size
     val totalInvested = items.sumOf { it.priceBought }
-    val totalSoldRevenue = items.filter { it.status == "Sold" }.sumOf { it.priceSold }
-    val totalSoldCost = items.filter { it.status == "Sold" }.sumOf { it.priceBought }
-    val netProfit = totalSoldRevenue - totalSoldCost
-    val profitMarginPct = if (totalSoldCost > 0) (netProfit / totalSoldCost) * 100.0 else 0.0
+    val soldItems = items.filter { it.status == "Sold" }
+    val totalSoldRevenue = soldItems.sumOf { it.priceSold }
+    val totalSoldCost = soldItems.sumOf { it.priceBought + it.shippingCost }
+    val totalSupplyCosts = trueCosts.sumOf { it.cost }
+    
+    val netProfit = totalSoldRevenue - totalSoldCost - totalSupplyCosts
+    val profitMarginPct = if (totalSoldCost > 0.0) (netProfit / totalSoldCost) * 100.0 else 0.0
 
     Scaffold(
         topBar = {
@@ -175,84 +199,415 @@ fun DashboardScreen(
                 revenue = currencyFormatter.format(totalSoldRevenue),
                 profit = currencyFormatter.format(netProfit),
                 margin = String.format(Locale.US, "%.1f%%", profitMarginPct),
-                marginColor = if (netProfit >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                marginColor = if (netProfit >= 0.0) Color(0xFF4ADE80) else Color(0xFFF43F5E)
             )
 
-            // Search Bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+            // Modern Segmented Tab Row
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag("search_bar_input"),
-                placeholder = { Text("Search by game, console, barcode...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear Search")
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                )
-            )
-
-            // Platform Filter Row
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .background(Color(0xFF1E293B), shape = RoundedCornerShape(12.dp))
+                    .padding(4.dp)
             ) {
-                items(platforms) { platform ->
-                    val isSelected = selectedPlatformFilter == platform
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedPlatformFilter = platform },
-                        label = { Text(platform) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = getPlatformColor(platform).copy(alpha = 0.25f),
-                            selectedLabelColor = getPlatformColor(platform),
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            selectedBorderColor = getPlatformColor(platform),
-                            borderColor = Color.Transparent
+                listOf(
+                    "INVENTORY" to "📦 Inventory",
+                    "LOOSE_PARTS" to "🏷️ Loose Parts",
+                    "TRUE_COST" to "📝 Supplies"
+                ).forEach { (tabKey, tabLabel) ->
+                    val isTabSelected = currentTab == tabKey
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isTabSelected) Color(0xFF3B82F6) else Color.Transparent)
+                            .clickable { currentTab = tabKey }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = tabLabel,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = if (isTabSelected) Color.White else Color(0xFF94A3B8)
                         )
-                    )
+                    }
                 }
             }
 
-            // Database empty state / list
-            if (items.isEmpty()) {
-                EmptyStateView(
-                    modifier = Modifier.weight(1f),
-                    onLoadDemoData = {
-                        seedDemoData(viewModel)
-                    }
-                )
-            } else {
-                LazyColumn(
+            // Tabs content
+            if (currentTab == "INVENTORY") {
+                // Search Bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("search_bar_input"),
+                    placeholder = { Text("Search by game, console, barcode...", color = Color(0xFF94A3B8)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF3B82F6)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear Search", tint = Color.White)
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF3B82F6),
+                        unfocusedBorderColor = Color(0x1AFFFFFF),
+                        focusedLabelColor = Color(0xFF3B82F6),
+                        unfocusedLabelColor = Color(0xFF94A3B8)
+                    )
+                )
+
+                // Platform Filter Row
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(filteredItems, key = { it.id }) { item ->
-                        InventoryCard(
-                            item = item,
-                            currencyFormatter = currencyFormatter,
-                            onEditClick = { onEditItem(item.id) }
+                    items(platforms) { platform ->
+                        val isSelected = selectedPlatformFilter == platform
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedPlatformFilter = platform },
+                            label = { Text(platform) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = getPlatformColor(platform).copy(alpha = 0.25f),
+                                selectedLabelColor = getPlatformColor(platform),
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                selectedBorderColor = getPlatformColor(platform),
+                                borderColor = Color.Transparent
+                            )
                         )
+                    }
+                }
+
+                // Database empty state / list
+                if (items.isEmpty()) {
+                    EmptyStateView(
+                        modifier = Modifier.weight(1f),
+                        onLoadDemoData = {
+                            seedDemoData(viewModel)
+                        }
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredItems, key = { it.id }) { item ->
+                            InventoryCard(
+                                item = item,
+                                currencyFormatter = currencyFormatter,
+                                onEditClick = { onEditItem(item.id) }
+                            )
+                        }
+                    }
+                }
+            } else if (currentTab == "TRUE_COST") {
+                // True cost supplies list & quick-add form
+                Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0x331E293B)),
+                        border = BorderStroke(1.dp, Color(0x0DFFFFFF))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("➕ Log Shipping / Supply Expense", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            
+                            OutlinedTextField(
+                                value = trueCostName,
+                                onValueChange = { trueCostName = it },
+                                placeholder = { Text("Supply Item (e.g., Bubble wrap, Boxes)", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = Color(0x1AFFFFFF)
+                                )
+                            )
+                            
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = trueCostPriceStr,
+                                    onValueChange = { trueCostPriceStr = it },
+                                    placeholder = { Text("Price Bought ($)", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF3B82F6),
+                                        unfocusedBorderColor = Color(0x1AFFFFFF)
+                                    )
+                                )
+                                OutlinedTextField(
+                                    value = trueCostQtyStr,
+                                    onValueChange = { trueCostQtyStr = it },
+                                    placeholder = { Text("Qty", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                    modifier = Modifier.weight(0.5f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF3B82F6),
+                                        unfocusedBorderColor = Color(0x1AFFFFFF)
+                                    )
+                                )
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    if (trueCostName.isEmpty()) {
+                                        Toast.makeText(context, "Please enter a name!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    val price = trueCostPriceStr.toDoubleOrNull() ?: 0.0
+                                    viewModel.addTrueCost(
+                                        com.example.data.TrueCostItem(
+                                            name = trueCostName,
+                                            cost = price,
+                                            dateBought = System.currentTimeMillis(),
+                                            notes = ""
+                                        )
+                                    )
+                                    trueCostName = ""
+                                    trueCostPriceStr = ""
+                                    trueCostQtyStr = "1"
+                                    Toast.makeText(context, "Supply logged successfully!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Log Supply Expense", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    if (trueCosts.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
+                            Text("No supply expenses logged yet.", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(trueCosts) { tc ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0x1F94A3B8)),
+                                    border = BorderStroke(1.dp, Color(0x0DFFFFFF))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text(tc.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                            Text(
+                                                "Total Cost: ${currencyFormatter.format(tc.cost)}",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        IconButton(onClick = { viewModel.deleteTrueCost(tc.id) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFF43F5E))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (currentTab == "LOOSE_PARTS") {
+                // Loose manuals, artwork, boxes list & quick-add form
+                Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0x331E293B)),
+                        border = BorderStroke(1.dp, Color(0x0DFFFFFF))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("➕ Log Loose Component (Manual, Cover Art, Box)", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            
+                            OutlinedTextField(
+                                value = loosePartName,
+                                onValueChange = { loosePartName = it },
+                                placeholder = { Text("Component Title (e.g., Silent Hill 2 Manual)", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = Color(0x1AFFFFFF)
+                                )
+                            )
+                            
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Platform selector dropdown
+                                var expandedLPPlatform by remember { mutableStateOf(false) }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    OutlinedCard(
+                                        onClick = { expandedLPPlatform = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.outlinedCardColors(containerColor = Color(0x1F94A3B8)),
+                                        border = BorderStroke(1.dp, Color(0x1AFFFFFF))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(loosePartPlatform, color = Color.White, fontSize = 12.sp)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = expandedLPPlatform,
+                                        onDismissRequest = { expandedLPPlatform = false },
+                                        modifier = Modifier.background(Color(0xFF1E293B))
+                                    ) {
+                                        listOf("PS1", "PS2", "PS3", "PS4", "PS5", "PSP", "PS Vita", "Switch", "Xbox", "Retro", "Other").forEach { plat ->
+                                            DropdownMenuItem(
+                                                text = { Text(plat, color = Color.White, fontSize = 12.sp) },
+                                                onClick = {
+                                                    loosePartPlatform = plat
+                                                    expandedLPPlatform = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                // Price field
+                                OutlinedTextField(
+                                    value = loosePartPriceStr,
+                                    onValueChange = { loosePartPriceStr = it },
+                                    placeholder = { Text("Bought ($)", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF3B82F6),
+                                        unfocusedBorderColor = Color(0x1AFFFFFF)
+                                    )
+                                )
+                            }
+                            
+                            // Loose part type selector
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Manual", "Artwork", "Box").forEach { t ->
+                                    val isSel = loosePartType == t
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSel) Color(0xFF3B82F6) else Color(0x1AFFFFFF))
+                                            .clickable { loosePartType = t }
+                                            .padding(vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(t, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    if (loosePartName.isEmpty()) {
+                                        Toast.makeText(context, "Please enter a component name!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    viewModel.addLoosePart(
+                                        com.example.data.LoosePartItem(
+                                            name = loosePartName,
+                                            platform = loosePartPlatform,
+                                            partType = loosePartType,
+                                            notes = ""
+                                        )
+                                    )
+                                    loosePartName = ""
+                                    loosePartPriceStr = ""
+                                    Toast.makeText(context, "Loose component logged!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Log Loose Component", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    if (looseParts.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
+                            Text("No loose components logged yet.", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(looseParts) { lp ->
+                                val lpColor = getPlatformColor(lp.platform)
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0x1F94A3B8)),
+                                    border = BorderStroke(1.dp, Color(0x0DFFFFFF))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .background(lpColor, shape = CircleShape)
+                                            )
+                                            Column {
+                                                Text(lp.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(lp.platform, color = lpColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Text("•", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                                                    Text(lp.partType.uppercase(), color = Color(0xFF3B82F6), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                                                }
+                                            }
+                                        }
+                                        IconButton(onClick = { viewModel.deleteLoosePart(lp.id) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFF43F5E))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -318,7 +673,7 @@ fun MetricsOverviewGrid(
             )
             MetricCard(
                 title = "Margins / Net",
-                value = "$margin ($profit)",
+                value = profit,
                 icon = Icons.Default.Sell,
                 color = marginColor,
                 modifier = Modifier.weight(1f)
@@ -379,6 +734,18 @@ fun MetricCard(
     }
 }
 
+fun getCountryFlag(country: String): String {
+    return when (country) {
+        "Portugal" -> "🇵🇹"
+        "Spain" -> "🇪🇸"
+        "Italy" -> "🇮🇹"
+        "France" -> "🇫🇷"
+        "Germany" -> "🇩🇪"
+        "United Kingdom" -> "🇬🇧"
+        else -> "🌍"
+    }
+}
+
 @Composable
 fun InventoryCard(
     item: ResellItem,
@@ -406,14 +773,36 @@ fun InventoryCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Platform Badge Indicator
+            // Left Custom Photo / Cover Display Box
             Box(
                 modifier = Modifier
-                    .width(6.dp)
-                    .height(60.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(platformColor)
-            )
+                    .size(54.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        when (item.photoPath) {
+                            "cover_adventure" -> Color(0xFFEF4444)
+                            "cover_retro" -> Color(0xFFF59E0B)
+                            "cover_sci_fi" -> Color(0xFF06B6D4)
+                            "cover_stealth" -> Color(0xFF10B981)
+                            "cover_console" -> Color(0xFF6366F1)
+                            "custom_camera_photo" -> Color(0xFF3B82F6)
+                            else -> platformColor.copy(alpha = 0.3f)
+                        }
+                    )
+                    .border(1.dp, platformColor.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                val icon = when (item.photoPath) {
+                    "cover_adventure" -> Icons.Default.Explore
+                    "cover_retro" -> Icons.Default.SportsEsports
+                    "cover_sci_fi" -> Icons.Default.AutoAwesome
+                    "cover_stealth" -> Icons.Default.VisibilityOff
+                    "cover_console" -> Icons.Default.Gamepad
+                    "custom_camera_photo" -> Icons.Default.CameraAlt
+                    else -> Icons.Default.Gamepad
+                }
+                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+            }
 
             Spacer(modifier = Modifier.width(14.dp))
 
@@ -438,6 +827,23 @@ fun InventoryCard(
                         )
                     }
                     
+                    // Game version (e.g., Platinum, Steelbook)
+                    if (item.gameVersion != "Normal" && item.gameVersion.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFF59E0B).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                item.gameVersion,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFF59E0B),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     // Item Type
                     val typeColor = if (item.type == "CONSOLE") Color(0xFFF43F5E) else Color(0xFF3B82F6)
                     Box(
@@ -521,6 +927,22 @@ fun InventoryCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF94A3B8)
                     )
+                    if (item.shippingCost > 0.0) {
+                        Text(
+                            "Ship: ${currencyFormatter.format(item.shippingCost)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFF43F5E),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (item.countryOfSale.isNotEmpty()) {
+                        Text(
+                            "${getCountryFlag(item.countryOfSale)} ${item.countryOfSale}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF3B82F6),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 } else {
                     Text(
                         currencyFormatter.format(item.priceBought),

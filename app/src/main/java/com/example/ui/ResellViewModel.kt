@@ -9,6 +9,8 @@ import com.example.api.GeminiLookupService
 import com.example.data.AppDatabase
 import com.example.data.ResellItem
 import com.example.data.ResellRepository
+import com.example.data.TrueCostItem
+import com.example.data.LoosePartItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +28,22 @@ class ResellViewModel(application: Application) : AndroidViewModel(application) 
 
     // List of all inventory items
     val allItems: StateFlow<List<ResellItem>> = repository.allItems
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // List of all true costs
+    val allTrueCosts: StateFlow<List<TrueCostItem>> = repository.allTrueCosts
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // List of all loose parts
+    val allLooseParts: StateFlow<List<LoosePartItem>> = repository.allLooseParts
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -60,6 +78,32 @@ class ResellViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteItem(id: Long) {
         viewModelScope.launch {
             repository.deleteItemById(id)
+        }
+    }
+
+    // True Costs CRUD
+    fun addTrueCost(item: TrueCostItem) {
+        viewModelScope.launch {
+            repository.insertTrueCost(item)
+        }
+    }
+
+    fun deleteTrueCost(id: Long) {
+        viewModelScope.launch {
+            repository.deleteTrueCostById(id)
+        }
+    }
+
+    // Loose Parts CRUD
+    fun addLoosePart(item: LoosePartItem) {
+        viewModelScope.launch {
+            repository.insertLoosePart(item)
+        }
+    }
+
+    fun deleteLoosePart(id: Long) {
+        viewModelScope.launch {
+            repository.deleteLoosePartById(id)
         }
     }
 

@@ -136,7 +136,7 @@ fun MonthlyBarChartSection(soldItems: List<ResellItem>, currencyFormatter: Numbe
         // Sort grouped months chronologically
         grouped.map { (month, list) ->
             val rev = list.sumOf { it.priceSold }
-            val cost = list.sumOf { it.priceBought }
+            val cost = list.sumOf { it.priceBought + it.shippingCost }
             val profit = rev - cost
             val sortTime = list.firstOrNull()?.dateSold ?: 0L
             Pair(sortTime, MonthlyStats(month, rev, cost, profit))
@@ -372,7 +372,7 @@ fun PlatformDonutChartSection(soldItems: List<ResellItem>, currencyFormatter: Nu
         val grouped = soldItems.groupBy { it.platform }
         val rawStats = grouped.map { (platform, list) ->
             val rev = list.sumOf { it.priceSold }
-            val cost = list.sumOf { it.priceBought }
+            val cost = list.sumOf { it.priceBought + it.shippingCost }
             val net = rev - cost
             ShareStats(platform, net, getPlatformColor(platform))
         }
@@ -555,7 +555,7 @@ fun PlatformDonutChartSection(soldItems: List<ResellItem>, currencyFormatter: Nu
 @Composable
 fun ProfitLeaderboardSection(soldItems: List<ResellItem>, currencyFormatter: NumberFormat) {
     val totalRevenue = soldItems.sumOf { it.priceSold }
-    val totalCost = soldItems.sumOf { it.priceBought }
+    val totalCost = soldItems.sumOf { it.priceBought + it.shippingCost }
     val totalProfit = totalRevenue - totalCost
 
     // Sort platforms by average profit margin
@@ -563,7 +563,7 @@ fun ProfitLeaderboardSection(soldItems: List<ResellItem>, currencyFormatter: Num
         soldItems.groupBy { it.platform }
             .map { (platform, list) ->
                 val pRev = list.sumOf { it.priceSold }
-                val pCost = list.sumOf { it.priceBought }
+                val pCost = list.sumOf { it.priceBought + it.shippingCost }
                 val pNet = pRev - pCost
                 val avgMargin = if (pCost > 0) (pNet / pCost) * 100.0 else 0.0
                 Triple(platform, pNet, avgMargin)

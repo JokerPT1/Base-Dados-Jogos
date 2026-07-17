@@ -26,4 +26,25 @@ interface ResellDao {
 
     @Query("DELETE FROM resell_items WHERE id = :id")
     suspend fun deleteItemById(id: Long)
+
+    // True Costs (Expenses) Queries
+    @Query("SELECT * FROM true_costs ORDER BY dateBought DESC")
+    fun getAllTrueCosts(): Flow<List<TrueCostItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrueCost(item: TrueCostItem): Long
+
+    @Query("DELETE FROM true_costs WHERE id = :id")
+    suspend fun deleteTrueCostById(id: Long)
+
+    // Loose Parts Queries
+    @Query("SELECT * FROM loose_parts ORDER BY dateAdded DESC")
+    fun getAllLooseParts(): Flow<List<LoosePartItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLoosePart(item: LoosePartItem): Long
+
+    @Query("DELETE FROM loose_parts WHERE id = :id")
+    suspend fun deleteLoosePartById(id: Long)
 }
+
