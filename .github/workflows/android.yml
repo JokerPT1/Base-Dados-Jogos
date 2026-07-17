@@ -1,0 +1,30 @@
+name: Gerar APK Automatizado
+
+on:
+  workflow_dispatch: # Permite-lhe clicar num botão para compilar quando quiser
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clonar o Código do Projeto
+      uses: actions/checkout@v4
+
+    - name: Configurar o Java (JDK 17)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Dar permissão ao compilador Gradle
+      run: chmod +x ./gradlew
+
+    - name: Compilar o APK de Teste (Debug)
+      run: ./gradlew assembleDebug
+
+    - name: Guardar o APK Pronto para Download
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-da-minha-app
+        path: app/build/outputs/apk/debug/app-debug.apk
