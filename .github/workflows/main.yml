@@ -1,0 +1,30 @@
+name: Compilador Android Oficial
+
+on:
+  workflow_dispatch: # Cria o botão para compilar quando quiser
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Copiar Codigo
+      uses: actions/checkout@v4
+
+    - name: Configurar Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Permissao Gradle
+      run: chmod +x ./gradlew
+
+    - name: Gerar APK Fixo
+      run: ./gradlew assembleDebug
+
+    - name: Guardar APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: AplicacaoPronta
+        path: app/build/outputs/apk/debug/app-debug.apk
