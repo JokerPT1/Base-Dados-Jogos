@@ -28,6 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.ResellItem
 import com.example.ui.ResellViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import java.io.File
+import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +79,30 @@ fun AddEditScreen(
     var dateBoughtStr by remember { mutableStateOf(dateFormatter.format(java.util.Date(dateBought))) }
     var dateSoldStr by remember { 
         mutableStateOf(if (dateSold > 0L) dateFormatter.format(java.util.Date(dateSold)) else dateFormatter.format(java.util.Date())) 
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { selectedUri ->
+            try {
+                val inputStream = context.contentResolver.openInputStream(selectedUri)
+                if (inputStream != null) {
+                    val file = File(context.filesDir, "selected_game_photo_${System.currentTimeMillis()}.jpg")
+                    val outputStream = FileOutputStream(file)
+                    inputStream.use { input ->
+                        outputStream.use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    photoPath = file.absolutePath
+                    Toast.makeText(context, "Image selected from gallery!", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Failed to load image: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     // Update barcode if a new scanned value arrives
@@ -151,34 +180,46 @@ fun AddEditScreen(
                             .size(64.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                when (photoPath) {
-                                    "cover_adventure" -> Color(0xFFEF4444)
-                                    "cover_retro" -> Color(0xFFF59E0B)
-                                    "cover_sci_fi" -> Color(0xFF06B6D4)
-                                    "cover_stealth" -> Color(0xFF6B7280)
-                                    "cover_console" -> Color(0xFF6366F1)
-                                    "custom_camera_photo" -> Color(0xFF10B981)
+                                when {
+                                    photoPath == "cover_adventure" -> Color(0xFFEF4444)
+                                    photoPath == "cover_retro" -> Color(0xFFF59E0B)
+                                    photoPath == "cover_sci_fi" -> Color(0xFF06B6D4)
+                                    photoPath == "cover_stealth" -> Color(0xFF6B7280)
+                                    photoPath == "cover_console" -> Color(0xFF6366F1)
+                                    photoPath == "custom_camera_photo" -> Color(0xFF10B981)
+                                    photoPath.isNotEmpty() -> Color.Black
                                     else -> Color(0x1F94A3B8)
                                 }
                             )
                             .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        val icon = when (photoPath) {
-                            "cover_adventure" -> Icons.Default.Explore
-                            "cover_retro" -> Icons.Default.SportsEsports
-                            "cover_sci_fi" -> Icons.Default.AutoAwesome
-                            "cover_stealth" -> Icons.Default.VisibilityOff
-                            "cover_console" -> Icons.Default.Gamepad
-                            "custom_camera_photo" -> Icons.Default.CameraAlt
-                            else -> Icons.Default.Image
+                        val isGalleryPhoto = photoPath.isNotEmpty() && !photoPath.startsWith("cover_") && photoPath != "custom_camera_photo"
+                        if (isGalleryPhoto) {
+                            AsyncImage(
+                                model = photoPath,
+                                contentDescription = "Selected Game Photo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            val icon = when (photoPath) {
+                                "cover_adventure" -> Icons.Default.Explore
+                                "cover_retro" -> Icons.Default.SportsEsports
+                                "cover_sci_fi" -> Icons.Default.AutoAwesome
+                                "cover_stealth" -> Icons.Default.VisibilityOff
+                                "cover_console" -> Icons.Default.Gamepad
+                                "custom_camera_photo" -> Icons.Default.CameraAlt
+                                else -> Icons.Default.Image
+                            }
+                            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                         }
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                     }
                     
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                        val isGalleryPhoto = photoPath.isNotEmpty() && !photoPath.startsWith("cover_") && photoPath != "custom_camera_photo"
                         Text(
-                            text = if (photoPath.isNotEmpty()) "Selected: ${photoPath.removePrefix("cover_").replace("_", " ").uppercase()}" else "No Photo Selected (Tap to Pick Preset)",
+                            text = if (isGalleryPhoto) "Selected: GALLERY PHOTO" else if (photoPath.isNotEmpty()) "Selected: ${photoPath.removePrefix("cover_").replace("_", " ").uppercase()}" else "No Photo Selected (Tap to Pick Preset)",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF94A3B8),
                             fontWeight = FontWeight.Bold
@@ -228,6 +269,25 @@ fun AddEditScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.CameraAlt, contentDescription = "Camera", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                            
+                            // Gallery Picker Button
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF3B82F6))
+                                    .border(
+                                        if (isGalleryPhoto) 2.dp else 0.dp,
+                                        Color.White,
+                                        CircleShape
+                                    )
+                                    .clickable { 
+                                        galleryLauncher.launch("image/*")
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = "Gallery", tint = Color.White, modifier = Modifier.size(14.dp))
                             }
                         }
                     }

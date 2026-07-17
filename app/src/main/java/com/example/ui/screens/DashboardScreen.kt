@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.ResellItem
 import com.example.ui.ResellViewModel
+import coil.compose.AsyncImage
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -786,22 +787,32 @@ fun InventoryCard(
                             "cover_stealth" -> Color(0xFF10B981)
                             "cover_console" -> Color(0xFF6366F1)
                             "custom_camera_photo" -> Color(0xFF3B82F6)
-                            else -> platformColor.copy(alpha = 0.3f)
+                            else -> if (item.photoPath.isNotEmpty()) Color.Black else platformColor.copy(alpha = 0.3f)
                         }
                     )
                     .border(1.dp, platformColor.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                val icon = when (item.photoPath) {
-                    "cover_adventure" -> Icons.Default.Explore
-                    "cover_retro" -> Icons.Default.SportsEsports
-                    "cover_sci_fi" -> Icons.Default.AutoAwesome
-                    "cover_stealth" -> Icons.Default.VisibilityOff
-                    "cover_console" -> Icons.Default.Gamepad
-                    "custom_camera_photo" -> Icons.Default.CameraAlt
-                    else -> Icons.Default.Gamepad
+                val isGalleryPhoto = item.photoPath.isNotEmpty() && !item.photoPath.startsWith("cover_") && item.photoPath != "custom_camera_photo"
+                if (isGalleryPhoto) {
+                    AsyncImage(
+                        model = item.photoPath,
+                        contentDescription = "Game Photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    val icon = when (item.photoPath) {
+                        "cover_adventure" -> Icons.Default.Explore
+                        "cover_retro" -> Icons.Default.SportsEsports
+                        "cover_sci_fi" -> Icons.Default.AutoAwesome
+                        "cover_stealth" -> Icons.Default.VisibilityOff
+                        "cover_console" -> Icons.Default.Gamepad
+                        "custom_camera_photo" -> Icons.Default.CameraAlt
+                        else -> Icons.Default.Gamepad
+                    }
+                    Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                 }
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
 
             Spacer(modifier = Modifier.width(14.dp))

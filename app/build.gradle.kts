@@ -13,31 +13,14 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
-  // 🔐 ADICIONADO: Configuração de Assinatura Fixa
-  signingConfigs {
-    getByName("debug") {
-      storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
-  }
-
   defaultConfig {
     applicationId = "com.aistudio.gamereseller.bzxvwp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1 // 🔄 Nota: Mude para 2, 3, etc., quando fizer futuras atualizações!
+    versionCode = 1
     versionName = "1.01"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-  }
-
-  // 🛠️ ADICIONADO: Forçar o APK a usar a assinatura fixa acima
-  buildTypes {
-    getByName("debug") {
-      signingConfig = signingConfigs.getByName("debug")
-    }
   }
 
   signingConfigs {
