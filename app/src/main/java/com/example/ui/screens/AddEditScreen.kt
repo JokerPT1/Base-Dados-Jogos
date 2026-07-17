@@ -57,7 +57,13 @@ fun AddEditScreen(
     var name by remember { mutableStateOf(existingItem?.name ?: "") }
     var platform by remember { mutableStateOf(existingItem?.platform ?: "PS2") }
     var barcode by remember { mutableStateOf(existingItem?.barcode ?: scannedBarcode ?: "") }
-    var condition by remember { mutableStateOf(existingItem?.condition ?: "CIB") }
+    var condition by remember { 
+        mutableStateOf(
+            existingItem?.condition?.let { cond ->
+                if (cond == "Without Manual") "No Manual" else cond
+            } ?: if (type == "GAME") "CIB" else "With Box"
+        )
+    }
     var tested by remember { mutableStateOf(existingItem?.tested ?: false) }
     var onSale by remember { mutableStateOf(existingItem?.onSale ?: false) }
     var status by remember { mutableStateOf(existingItem?.status ?: "Inventory") }
@@ -71,6 +77,7 @@ fun AddEditScreen(
     var whereBought by remember { mutableStateOf(existingItem?.whereBought ?: "") }
     var whereSold by remember { mutableStateOf(existingItem?.whereSold ?: "") }
     var notes by remember { mutableStateOf(existingItem?.notes ?: "") }
+    var serialCode by remember { mutableStateOf(existingItem?.serialCode ?: "") }
     
     var dateBought by remember { mutableStateOf(existingItem?.dateBought ?: System.currentTimeMillis()) }
     var dateSold by remember { mutableStateOf(existingItem?.dateSold ?: 0L) }
@@ -117,7 +124,9 @@ fun AddEditScreen(
 
     // List of platforms, conditions, and statuses
     val platforms = listOf("PS1", "PS2", "PS3", "PS4", "PS5", "PSP", "PS Vita", "Switch", "Xbox", "Retro", "Other")
-    val conditions = listOf("CIB", "Without Manual", "Loose", "Broken Box", "Not Working")
+    val gameConditions = listOf("CIB", "No Manual", "Loose", "Broken Box", "Not Working")
+    val consoleConditions = listOf("With Box", "No Box", "Parts", "Broken", "Other")
+    val conditions = if (type == "GAME") gameConditions else consoleConditions
     val statuses = listOf("Inventory", "Listed", "Sold", "Keep")
     val countries = listOf("Portugal", "Spain", "Italy", "France", "Germany", "United Kingdom", "Other")
     val versions = listOf("Normal", "Platinum", "Essentials", "SteelBook", "ArtBook", "Collector's Edition")
@@ -294,14 +303,18 @@ fun AddEditScreen(
                 }
             }
 
-            // GAME VS CONSOLE Selector Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0x331E293B), shape = RoundedCornerShape(12.dp))
-                    .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
-                    .padding(4.dp)
-            ) {
+            // Category Selection Header
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Asset Category", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                
+                // GAME VS CONSOLE Selector Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0x331E293B), shape = RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
+                        .padding(4.dp)
+                ) {
                 listOf("GAME", "CONSOLE").forEach { choice ->
                     val isChoiceSelected = type == choice
                     Box(
@@ -309,7 +322,18 @@ fun AddEditScreen(
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isChoiceSelected) Color(0xFF3B82F6) else Color.Transparent)
-                            .clickable { type = choice }
+                            .clickable { 
+                                type = choice 
+                                if (choice == "GAME") {
+                                    if (condition !in gameConditions) {
+                                        condition = "CIB"
+                                    }
+                                } else {
+                                    if (condition !in consoleConditions) {
+                                        condition = "With Box"
+                                    }
+                                }
+                            }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -321,6 +345,7 @@ fun AddEditScreen(
                         )
                     }
                 }
+            }
             }
 
             // Game Name/Title with Gemini Auto-fill Option
@@ -515,6 +540,7 @@ fun AddEditScreen(
                                     gameVersion = source.gameVersion
                                     photoPath = source.photoPath
                                     notes = source.notes
+                                    serialCode = source.serialCode
                                     Toast.makeText(context, "📋 Pre-filled from existing: '${source.name}'", Toast.LENGTH_SHORT).show()
                                 }
                                 .padding(vertical = 4.dp),
@@ -906,6 +932,27 @@ fun AddEditScreen(
                 }
             }
 
+            // Console Serial Code field (if type is CONSOLE)
+            if (type == "CONSOLE") {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Console Serial Code", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    OutlinedTextField(
+                        value = serialCode,
+                        onValueChange = { serialCode = it },
+                        placeholder = { Text("e.g. CUH-1215A, Serial No. AB123456789...", color = Color(0xFF94A3B8)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("console_serial_code"),
+                        shape = RoundedCornerShape(10.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF3B82F6),
+                            unfocusedBorderColor = Color(0x1AFFFFFF)
+                        )
+                    )
+                }
+            }
+
             // Notes field
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Notes & Details", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color.White)
@@ -974,7 +1021,8 @@ fun AddEditScreen(
                         whereSold = whereSold,
                         dateBought = parsedDateBought,
                         dateSold = parsedDateSold,
-                        notes = notes
+                        notes = notes,
+                        serialCode = if (type == "CONSOLE") serialCode else ""
                     )
 
                     viewModel.addOrUpdateItem(item)

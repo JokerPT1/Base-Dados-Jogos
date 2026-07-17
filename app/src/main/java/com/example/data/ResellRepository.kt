@@ -61,6 +61,7 @@ class ResellRepository(private val resellDao: ResellDao) {
                 put("dateBought", item.dateBought)
                 put("dateSold", item.dateSold)
                 put("notes", item.notes)
+                put("serialCode", item.serialCode)
             }
             jsonArray.put(jsonObject)
         }
@@ -102,7 +103,8 @@ class ResellRepository(private val resellDao: ResellDao) {
                     whereSold = obj.optString("whereSold", ""),
                     dateBought = obj.optLong("dateBought", System.currentTimeMillis()),
                     dateSold = obj.optLong("dateSold", 0),
-                    notes = obj.optString("notes", "")
+                    notes = obj.optString("notes", ""),
+                    serialCode = obj.optString("serialCode", "")
                 )
 
                 // Check conflict: if item with same name & platform & barcode exists, update it, otherwise insert new

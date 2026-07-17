@@ -24,6 +24,7 @@ data class ResellItem(
     val whereSold: String = "",
     val dateBought: Long = System.currentTimeMillis(),
     val dateSold: Long = 0,
-    val notes: String = ""
+    val notes: String = "",
+    val serialCode: String = ""
 )
 

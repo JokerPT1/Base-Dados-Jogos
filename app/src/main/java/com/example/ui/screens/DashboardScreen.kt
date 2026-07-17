@@ -76,7 +76,8 @@ fun DashboardScreen(
     val filteredItems = items.filter { item ->
         val matchesSearch = item.name.contains(searchQuery, ignoreCase = true) || 
                             item.barcode.contains(searchQuery) ||
-                            item.notes.contains(searchQuery, ignoreCase = true)
+                            item.notes.contains(searchQuery, ignoreCase = true) ||
+                            item.serialCode.contains(searchQuery, ignoreCase = true)
         val matchesPlatform = selectedPlatformFilter == "All" || item.platform == selectedPlatformFilter
         matchesSearch && matchesPlatform
     }
@@ -869,6 +870,23 @@ fun InventoryCard(
                             color = typeColor,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+
+                    // Console Serial Code Badge
+                    if (item.type == "CONSOLE" && item.serialCode.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF8B5CF6).copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "S/N: ${item.serialCode}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFC084FC),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     if (item.tested) {
