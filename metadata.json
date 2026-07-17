@@ -1,0 +1,6 @@
+{
+  "name": "Game Reseller Database",
+  "description": "Track physical games and consoles inventory, scan barcodes with AI metadata lookup, view financial analytics with interactive profit charts, and back up data.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
