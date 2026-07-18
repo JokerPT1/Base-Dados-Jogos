@@ -1,4 +1,4 @@
-name: Build Android APK with Custom Action
+name: Build Android APK
 
 on:
   push:
@@ -19,16 +19,26 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    # 1. Cria o ficheiro keystore na raiz do projeto
+    # 1. Descodifica a tua Keystore permanente na raiz do projeto
     - name: Decode Keystore
       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-    # 2. Executa a compilação usando o teu fork (corrigido para @main)
-    - name: Run APK Builder Action
-      uses: JokerPT1/apk-builder-action@main
+    # 2. Dá permissão ao script de compilação do Android
+    - name: Grant Execute Permission for Gradlew
+      run: chmod +x gradlew
+
+    # 3. Compila o APK usando o comando nativo do Android
+    # Injeta automaticamente os teus 3 segredos para o teu build.gradle.kts ler
+    - name: Build Release APK
       env:
         SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: ./gradlew assembleRelease
+
+    # 4. Disponibiliza o APK final para download na aba Actions
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
       with:
-        build-root-dir: '.'
+        name: GameReseller-Release
+        path: app/build/outputs/apk/release/app-release.apk
