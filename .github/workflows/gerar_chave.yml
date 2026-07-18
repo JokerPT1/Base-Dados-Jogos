@@ -1,0 +1,18 @@
+name: Gerar Minha Chave
+
+on:
+  workflow_dispatch: # Isto permite-te carregar num botão para correr o script
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Criar Chave Permanente
+      run: |
+        keytool -genkey -v -keystore vaultprohub.keystore -alias vaultpro_alias -keyalg RSA -keysize 2048 -validity 10000 -storepass MinhaSenhaSuperSegura123 -keypass MinhaSenhaSuperSegura123 -dname "CN=VaultProHub, OU=Dev, O=Vault, L=Lisboa, C=PT"
+
+    - name: Disponibilizar para Download
+      uses: actions/upload-artifact@v4
+      with:
+        name: minha-keystore-segura
+        path: vaultprohub.keystore
