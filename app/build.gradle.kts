@@ -25,11 +25,13 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      // O GitHub Actions vai criar o ficheiro exatamente com este nome na raiz do projeto:
+      storeFile = file("${rootDir}/release.keystore")
+      
+      // Ajustado para ler exatamente os nossos Segredos do GitHub
+      storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+      keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+      keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
