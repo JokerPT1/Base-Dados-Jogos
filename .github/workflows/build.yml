@@ -1,0 +1,49 @@
+name: Gerar APK Oficial
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Descarregar Codigo
+      uses: actions/checkout@v4
+
+    - name: Configurar Java 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+        cache: 'gradle'
+
+    - name: Criar Ficheiros de Configuracao
+      run: |
+        echo "MAPS_API_KEY=mock_key" > .env
+        echo "echo 'mock'" > .env.example
+        echo '{"project_info":{"project_number":"1","project_id":"mock"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1"},"api_key":[{"current_key":"mock"}]}]}' > app/google-services.json
+
+    # Descodifica a chave com o nome exato que o teu build.gradle.kts procura: release.keystore
+    - name: Descodificar Keystore
+      run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+    - name: Dar permissao ao compilador
+      run: |
+        sed -i 's/\r$//' gradlew
+        chmod +x gradlew
+
+    - name: Compilar APK Assinado
+      env:
+        SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: ./gradlew assembleRelease --stacktrace
+
+    - name: Disponibilizar para Download
+      uses: actions/upload-artifact@v4
+      with:
+        name: VaultPro-Oficial
+        path: app/build/outputs/apk/release/app-release.apk
