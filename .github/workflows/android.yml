@@ -12,40 +12,51 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: '17'
+        java-version: '21'
         cache: 'gradle'
 
-    # 1. Cria ficheiros de configuração falsos para o compilador não queixar-se
-    # (Já que o teu Gradle exige o Secrets Plugin e Google Services)
-    - name: Create Missing Config Files
-      run: |
-        echo "MAPS_API_KEY=mock_key" > .env
-        echo "echo 'mock'" > .env.example
-        echo '{"project_info":{"project_number":"1","project_id":"mock"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1"},"api_key":[{"current_key":"mock"}]}]}' > app/google-services.json
-
-    # 2. Descodifica a tua Keystore permanente na raiz do projeto
-    - name: Decode Keystore
-      run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
-
-    # 3. Dá permissão ao script de compilação do Android
-    - name: Grant Execute Permission for Gradlew
-      run: chmod +x gradlew
-
-    # 4. Compila o APK usando o comando nativo do Android
-    - name: Build Release APK
+    # 1. Procura dinamicamente onde está a pasta do projeto Android e entra nela
+    - name: Fix, Decode Keystore and Build
       env:
         SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: ./gradlew assembleRelease --stacktrace
+      run: |
+        # Descobre onde está o ficheiro gradlew no teu repositório
+        GRADLEW_PATH=$(find . -name gradlew -print -quit)
+        
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "ERRO: Não foi encontrado nenhum projeto Android com o ficheiro gradlew neste repositório!"
+          exit 1
+        fi
+        
+        # Extrai a pasta onde o projeto está guardado
+        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+        echo "Projeto encontrado na pasta: $PROJECT_DIR"
+        cd "$PROJECT_DIR"
+        
+        # Cria os ficheiros falsos necessários na pasta correta
+        echo "MAPS_API_KEY=mock_key" > .env
+        echo "echo 'mock'" > .env.example
+        echo '{"project_info":{"project_number":"1","project_id":"mock"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1"},"api_key":[{"current_key":"mock"}]}]}' > app/google-services.json
+        
+        # Descodifica a tua Keystore permanente na raiz do projeto Android
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+        
+        # Corrige as quebras de linha e dá permissões
+        sed -i 's/\r$//' gradlew
+        chmod +x gradlew
+        
+        # Compila o APK final
+        ./gradlew assembleRelease --stacktrace
 
-    # 5. Disponibiliza o APK final para download na aba Actions
+    # 2. Procura o APK gerado (não importa em que subpasta esteja) e guarda-o
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: GameReseller-Release
-        path: app/build/outputs/apk/release/app-release.apk
+        path: "**/build/outputs/apk/release/app-release.apk"
