@@ -19,24 +19,31 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    # 1. Descodifica a tua Keystore permanente na raiz do projeto
+    # 1. Cria ficheiros de configuração falsos para o compilador não queixar-se
+    # (Já que o teu Gradle exige o Secrets Plugin e Google Services)
+    - name: Create Missing Config Files
+      run: |
+        echo "MAPS_API_KEY=mock_key" > .env
+        echo "echo 'mock'" > .env.example
+        echo '{"project_info":{"project_number":"1","project_id":"mock"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1"},"api_key":[{"current_key":"mock"}]}]}' > app/google-services.json
+
+    # 2. Descodifica a tua Keystore permanente na raiz do projeto
     - name: Decode Keystore
       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-    # 2. Dá permissão ao script de compilação do Android
+    # 3. Dá permissão ao script de compilação do Android
     - name: Grant Execute Permission for Gradlew
       run: chmod +x gradlew
 
-    # 3. Compila o APK usando o comando nativo do Android
-    # Injeta automaticamente os teus 3 segredos para o teu build.gradle.kts ler
+    # 4. Compila o APK usando o comando nativo do Android
     - name: Build Release APK
       env:
         SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease --stacktrace
 
-    # 4. Disponibiliza o APK final para download na aba Actions
+    # 5. Disponibiliza o APK final para download na aba Actions
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
