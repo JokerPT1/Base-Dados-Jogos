@@ -2,7 +2,7 @@ name: Build Android APK with Custom Action
 
 on:
   push:
-    branches: [ main ] # Corre sempre que envias código para a main
+    branches: [ main ]
 
 jobs:
   build:
@@ -12,18 +12,23 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 1. Cria o ficheiro keystore na raiz do projeto a partir do teu segredo Base64
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        cache: 'gradle'
+
+    # 1. Cria o ficheiro keystore na raiz do projeto
     - name: Decode Keystore
       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-    # 2. Executa a compilação usando o teu fork da Action
+    # 2. Executa a compilação usando o teu fork (corrigido para @main)
     - name: Run APK Builder Action
-      uses: JokerPT1/apk-builder-action@master
+      uses: JokerPT1/apk-builder-action@main
       env:
-        # Injeta os teus segredos do GitHub como variáveis de ambiente para o Gradle ler
         SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       with:
-        # Passa os parâmetros esperados pela tua action (ajusta se o teu fork pedir caminhos diferentes)
         build-root-dir: '.'
