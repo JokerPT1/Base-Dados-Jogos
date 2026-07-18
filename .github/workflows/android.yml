@@ -1,8 +1,8 @@
-name: Build & Sign Android APK
+name: Build Android APK with Custom Action
 
 on:
   push:
-    branches: [ main ] # Corre sempre que envias código para a branch principal
+    branches: [ main ] # Corre sempre que envias código para a main
 
 jobs:
   build:
@@ -12,32 +12,18 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '17'
-        cache: 'gradle'
-
-    # 1. Cria o ficheiro keystore na raiz do projeto (rootDir) a partir do teu segredo Base64
+    # 1. Cria o ficheiro keystore na raiz do projeto a partir do teu segredo Base64
     - name: Decode Keystore
       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-    # 2. Dá permissão de execução ao script do Gradle
-    - name: Grant Execute Permission for Gradlew
-      run: chmod +x gradlew
-
-    # 3. Compila o APK injetando as credenciais de assinatura
-    - name: Build Release APK
+    # 2. Executa a compilação usando o teu fork da Action
+    - name: Run APK Builder Action
+      uses: JokerPT1/apk-builder-action@master
       env:
+        # Injeta os teus segredos do GitHub como variáveis de ambiente para o Gradle ler
         SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: ./gradlew assembleRelease
-
-    # 4. Guarda o APK final para poderes fazer o download
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
       with:
-        name: GameReseller-Release
-        path: app/build/outputs/apk/release/app-release.apk
+        # Passa os parâmetros esperados pela tua action (ajusta se o teu fork pedir caminhos diferentes)
+        build-root-dir: '.'
